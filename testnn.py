@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Neural Networks
 ===============
@@ -37,33 +36,27 @@ Define the network
 
 Let’s define this network:
 """
+
 import torch
-from torch.autograd import Variable
+from torch.autograd import Variable, grad
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 
 class Net(nn.Module):
-
     def __init__(self):
         super(Net, self).__init__()
-        # 1 input image channel, 6 output channels, 5x5 square convolution
-        # kernel
-        self.conv1 = nn.Conv2d(1, 6, 5)
-        self.conv2 = nn.Conv2d(6, 16, 5)
         # an affine operation: y = Wx + b
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc1 = nn.Linear(400, 120)
+        self.tanh1 = nn.Tanh()
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.tanh2 = nn.Tanh()
+        self.fc3 = nn.Linear(84, 1)
 
     def forward(self, x):
-        # Max pooling over a (2, 2) window
-        x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
-        # If the size is a square you can only specify a single number
-        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
-        x = x.view(-1, self.num_flat_features(x))
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = self.tanh1(self.fc1(x))
+        x = self.tanh2(self.fc2(x))
         x = self.fc3(x)
         return x
 
@@ -95,10 +88,19 @@ print(params[0].size())  # conv1's .weight
 # Note: Expected input size to this net(LeNet) is 32x32. To use this net on
 # MNIST dataset,please resize the images from the dataset to 32x32.
 
-input = Variable(torch.randn(1, 1, 32, 32))
+input = Variable(torch.randn(400), requires_grad=True)
 out = net(input)
 print(out)
+scala = out
+if 0:
+    g1 = grad(scala, input, create_graph=True)[0]
+    g2 = torch.zeros(g1.size())
+    for idx in np.ndindex(g1.size()):
+        s = grad(g1[idx], input)[0]
+        g2[idx] = s
 
+
+'''
 ########################################################################
 # Zero the gradient buffers of all parameters and backprops with random
 # gradients:
@@ -253,3 +255,4 @@ output = net(input)
 loss = criterion(output, target)
 loss.backward()
 optimizer.step()    # Does the update
+'''
