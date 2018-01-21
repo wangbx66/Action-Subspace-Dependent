@@ -42,7 +42,7 @@ export OMP_NUM_THREADS=1
 ## Evolutionary Clustering
 
 ```
-K, the number of cluster or action subspace 
+K, the number of clusters or action subspaces
 alpha, between 0 and 1, the rate of decay of cumulated Hessian matrixs
 eta, the importance ratio of the k-means loss of the last frame
 ```
