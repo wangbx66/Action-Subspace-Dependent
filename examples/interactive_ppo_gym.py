@@ -5,12 +5,12 @@ import sys
 import pickle
 import time
 import datetime
-sys.path.append('/home/bxwang/action-dependence/pytorch-rl')
+sys.path.append('/home/bxwang/Action-Subspace-Dependent')
 
 from utils import *
 from models.mlp_policy import Policy
 from models.mlp_critic import Value
-from models.mlp_advantage import Advantage
+from models.wnd_advantage import Advantage
 from models.mlp_policy_disc import DiscretePolicy
 from torch.autograd import Variable
 from core.ppo import ppo_step
@@ -53,6 +53,7 @@ parser.add_argument('--save-model-interval', type=int, default=50, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 args = parser.parse_args()
 #args.env_name = 'Humanoid-v1'
+logger_name = ''
 args.env_name = 'DoubleHopper-v1'
 args.render = False
 
@@ -85,8 +86,8 @@ running_state = ZFilter((state_dim,), clip=5)
 # running_reward = ZFilter((1,), demean=False, clip=10)
 
 """define actor and critic"""
-size = (64, 64)
-policy_size = size#(8, 8)
+size = (128, 128)
+policy_size = (64, 64)
 critic_size = size#(8, 8)
 advantage_size = size#(8, 8)
 if args.model_path is None:
@@ -120,7 +121,16 @@ class eclustering_dummy:
         #return np.array([0,0,0] * 2, dtype=np.int64)
         return np.array([0,0,0] + [1,1,1], dtype=np.int64)
 
-def update_params(batch, i_iter, partition, ecluster):
+def get_wi(partition):
+    wi_list = []
+    for cluster in range(partition.max()+1):
+        wi = torch.from_numpy((partition==cluster).astype(np.float64))
+        if use_gpu:
+            wi = wi.cuda()
+        wi_list.append(wi)
+    return wi_list
+
+def update_params(batch, i_iter, wi_list, ecluster):
     states = torch.from_numpy(np.stack(batch.state))
     actions = torch.from_numpy(np.stack(batch.action))
     rewards = torch.from_numpy(np.stack(batch.reward))
@@ -131,7 +141,7 @@ def update_params(batch, i_iter, partition, ecluster):
     #advantage_inputs = torch.cat((states, actions), dim=1)
     #advantages_symbol = advantage_net(Variable(states, volatile=True))
     #advantage = advantages_symbol.data
-    fixed_log_probs = policy_net.get_log_prob(Variable(states, volatile=True), Variable(actions), partition).data
+    fixed_log_probs = policy_net.get_log_prob(Variable(states, volatile=True), Variable(actions), wi_list).data
 
     """get advantage estimation from the trajectories"""
     advantages, returns, advantages_unbiased = estimate_advantages(rewards, masks, values, args.gamma, args.tau, use_gpu)
@@ -155,15 +165,17 @@ def update_params(batch, i_iter, partition, ecluster):
             states_b, actions_b, advantages_b, returns_b, fixed_log_probs_b = \
                 states[ind], actions[ind], advantages[ind], returns[ind], fixed_log_probs[ind]
 
-            H = ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, 1, states_b, actions_b, returns_b, advantages_b, fixed_log_probs_b, lr_mult, args.learning_rate, args.clip_epsilon, args.l2_reg, partition)
+            H = ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, 1, states_b, actions_b, returns_b, advantages_b, fixed_log_probs_b, lr_mult, args.learning_rate, args.clip_epsilon, args.l2_reg, wi_list)
             list_H.append(H.unsqueeze(0))
     H_hat = torch.cat(list_H, dim=0).mean(dim=0).numpy().astype(np.float64)
-    with open('loghdoublehopper01', 'a') as fa:
+    with open('logh{0}'.format(logger_name), 'a') as fa:
         fa.write(str(H_hat) + '\n')
     partition = ecluster.step(H_hat)
-    return partition
+    wi_list = get_wi(partition)
+    return wi_list, H_hat
 
 partition = np.array([0,] * action_dim, dtype=np.int64)
+wi_list = get_wi(partition)
 for i_iter in range(args.max_iter_num):
     """
     generate multiple trajectories that reach the minimum batch_size
@@ -171,14 +183,17 @@ for i_iter in range(args.max_iter_num):
     """    
     batch, log = agent.collect_samples(args.min_batch_size)
     t0 = time.time()
-    partition = update_params(batch, i_iter, partition, eclustering_dummy())
+    wi_list, H_hat = update_params(batch, i_iter, wi_list, eclustering_dummy())
     t1 = time.time()
 
     if i_iter % args.log_interval == 0:
-        msg = '{}\t{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_avg {:.2f}\n'.format(
-            datetime.datetime.now().strftime('%d %H:%M:%S'), i_iter, log['sample_time'], t1-t0, log['min_reward'], log['max_reward'], log['avg_reward'])
+        ll = log['reward_episode_list']
+        std = np.array(ll).std()
+        msg = '{}\t{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_std {:.2f}\tR_avg {:.2f}\n'.format(
+            datetime.datetime.now().strftime('%d %H:%M:%S'), i_iter, log['sample_time'], t1-t0, log['min_reward'], log['max_reward'], std, log['avg_reward'])
         print(msg)
-        with open('logdoublehopper01', 'a') as fa:
+        print(H_hat)
+        with open('log{0}'.format(logger_name), 'a') as fa:
             fa.write(msg)
 
     if args.save_model_interval > 0 and (i_iter+1) % args.save_model_interval == 0:

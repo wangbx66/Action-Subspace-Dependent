@@ -5,7 +5,7 @@ from utils import use_gpu
 
 
 def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, optim_value_iternum, states, actions,
-             returns, advantages, fixed_log_probs, lr_mult, lr, clip_epsilon, l2_reg, partition):
+             returns, advantages, fixed_log_probs, lr_mult, lr, clip_epsilon, l2_reg, wi_list):
     decay = True
     
     optimizer_policy.lr = lr * lr_mult
@@ -41,13 +41,11 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     """update policy"""
     advantages_var = Variable(advantages)
     action_bar = actions.mean(dim=0).unsqueeze(0).expand(actions.size()[0], -1)
-    log_probs = policy_net.get_log_prob(Variable(states), Variable(actions), partition)
+    log_probs = policy_net.get_log_prob(Variable(states), Variable(actions), wi_list)
     surr1_components = []
     surr2_components = []
-    for cluster in range(partition.max()+1):
-        wi = torch.from_numpy((partition==cluster).astype(np.float64)).unsqueeze(0).expand(actions.size()[0], -1)
-        if use_gpu:
-            wi = wi.cuda()
+    for cluster, wi in enumerate(wi_list):
+        wi = wi.unsqueeze(0).expand(actions.size()[0], -1)
         action_i = Variable(action_bar * wi + actions * (1 - wi))
         advantages_baseline_i = advantage_net(Variable(states), action_i)
         ratio_i = torch.exp(log_probs[:, cluster].unsqueeze(1) - Variable(fixed_log_probs[:, cluster].unsqueeze(1)))
@@ -63,6 +61,9 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
 
     """calculate hessian"""
     actions_var = Variable(actions, requires_grad=True)
+    g2 = advantage_net.so(Variable(states)).data
+    return g2.mean(dim=0)
+    '''
     advantages_pred = advantage_net(Variable(states), actions_var)
     g1 = grad(advantages_pred.mean(), actions_var, create_graph=True)[0]
     ag = g1.sum(dim=0)
@@ -70,4 +71,4 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     for idx in range(g2.size()[0]):
         g2[idx, :] = grad(ag[idx], actions_var, retain_graph=True)[0].sum(dim=0).data
     return g2
-
+    '''

@@ -10,16 +10,14 @@ def normal_entropy(std):
     return entropy.sum(1, keepdim=True)
 
 
-def normal_log_density(x, mean, log_std, std, partition=None):
+def normal_log_density(x, mean, log_std, std, wi_list=None):
     var = std.pow(2)
     log_density = -(x - mean).pow(2) / (2 * var) - 0.5 * math.log(2 * math.pi) - log_std
-    if partition is None:
+    if wi_list is None:
         return log_density.sum(1, keepdim=True)
     else:
         results = []
-        for cluster in range(partition.max()+1):
-            wi = Variable(torch.unsqueeze(torch.from_numpy((partition==cluster).astype(np.float64)), 1))
-            if use_gpu:
-                wi = wi.cuda()
+        for wi in wi_list:
+            wi = Variable(wi.unsqueeze(1))
             results.append(torch.mm(log_density, wi))
         return torch.cat(results, dim=1)

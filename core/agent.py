@@ -1,4 +1,5 @@
 import multiprocessing
+import functools
 from utils.replay_memory import Memory
 from utils.torch import *
 from torch.autograd import Variable
@@ -18,6 +19,7 @@ def collect_samples(pid, queue, env, policy, custom_reward, mean_action, tensor,
     min_c_reward = 1e6
     max_c_reward = -1e6
     num_episodes = 0
+    reward_episode_list = []
 
     while num_steps < min_batch_size:
         state = env.reset()
@@ -60,6 +62,7 @@ def collect_samples(pid, queue, env, policy, custom_reward, mean_action, tensor,
         total_reward += reward_episode
         min_reward = min(min_reward, reward_episode)
         max_reward = max(max_reward, reward_episode)
+        reward_episode_list.append(reward_episode)
 
     log['num_steps'] = num_steps
     log['num_episodes'] = num_episodes
@@ -67,6 +70,7 @@ def collect_samples(pid, queue, env, policy, custom_reward, mean_action, tensor,
     log['avg_reward'] = total_reward / num_episodes
     log['max_reward'] = max_reward
     log['min_reward'] = min_reward
+    log['reward_episode_list'] = reward_episode_list
     if custom_reward is not None:
         log['total_c_reward'] = total_c_reward
         log['avg_c_reward'] = total_c_reward / num_steps
@@ -87,12 +91,12 @@ def merge_log(log_list):
     log['avg_reward'] = log['total_reward'] / log['num_episodes']
     log['max_reward'] = max([x['max_reward'] for x in log_list])
     log['min_reward'] = min([x['min_reward'] for x in log_list])
+    log['reward_episode_list'] = functools.reduce(list.__add__, [x['reward_episode_list'] for x in log_list])
     if 'total_c_reward' in log_list[0]:
         log['total_c_reward'] = sum([x['total_c_reward'] for x in log_list])
         log['avg_c_reward'] = log['total_c_reward'] / log['num_steps']
         log['max_c_reward'] = max([x['max_c_reward'] for x in log_list])
         log['min_c_reward'] = min([x['min_c_reward'] for x in log_list])
-
     return log
 
 

@@ -51,9 +51,9 @@ class Policy(nn.Module):
         kl = log_std1 - log_std0 + (std0.pow(2) + (mean0 - mean1).pow(2)) / (2.0 * std1.pow(2)) - 0.5
         return kl.sum(1, keepdim=True)
 
-    def get_log_prob(self, x, actions, partition=None):
+    def get_log_prob(self, x, actions, wi_list=None):
         action_mean, action_log_std, action_std = self.forward(x)
-        return normal_log_density(actions, action_mean, action_log_std, action_std, partition)
+        return normal_log_density(actions, action_mean, action_log_std, action_std, wi_list)
 
     def get_fim(self, x):
         mean, _, _ = self.forward(x)
