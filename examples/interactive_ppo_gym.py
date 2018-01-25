@@ -5,7 +5,7 @@ import sys
 import pickle
 import time
 import datetime
-sys.path.append('/home/bxwang/Action-Subspace-Dependent')
+sys.path.append(os.path.expanduser('~/Action-Subspace-Dependent'))
 
 from utils import *
 from models.mlp_policy import Policy
