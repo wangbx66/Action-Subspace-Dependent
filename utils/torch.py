@@ -3,8 +3,9 @@ import numpy as np
 from torch.autograd import Variable
 
 use_gpu = torch.cuda.is_available()
-if torch.cuda.get_device_name(0) == 'Quadro K600':
-    use_gpu = False
+if torch.cuda.is_available():
+    if torch.cuda.get_device_name(0) == 'Quadro K600':
+        use_gpu = False
 DoubleTensor = torch.DoubleTensor
 FloatTensor = torch.FloatTensor
 LongTensor = torch.LongTensor
