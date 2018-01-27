@@ -43,19 +43,25 @@ parser.add_argument('--num-threads', type=int, default=8, metavar='N',
                     help='number of threads for agent (default: 8)')
 parser.add_argument('--seed', type=int, default=1, metavar='N',
                     help='random seed (default: 1)')
-parser.add_argument('--min-batch-size', type=int, default=2048, metavar='N',
+parser.add_argument('--min-batch-size', type=int, default=64, metavar='N',
                     help='minimal batch size per PPO update (default: 2048)')
-parser.add_argument('--max-iter-num', type=int, default=100000, metavar='N',
+parser.add_argument('--max-iter-num', type=int, default=10000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
 parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')
-parser.add_argument('--save-model-interval', type=int, default=50, metavar='N',
+parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
+parser.add_argument('--logger-name', default='', metavar='G',
+                    help="logger's name (default: '', empty)")
+parser.add_argument('--number-subspaces', type=int, default=2, metavar='N',
+                    help="action #subspace (default: 2)")
 args = parser.parse_args()
 #args.env_name = 'Humanoid-v1'
-logger_name = ''
-args.env_name = 'DoubleHopper-v1'
-args.render = False
+#args.env_name = 'Walker2d-v1'
+#args.env_name = 'DoubleHopper-v1'
+#args.env_name = 'Ant-v1'
+#args.seed = 2
+logger_name = args.logger_name
 
 def env_factory(thread_id):
     if args.env_name == 'Quadratic':
@@ -116,10 +122,20 @@ optim_batch_size = 4096
 """create agent"""
 agent = Agent(env_factory, policy_net, running_state=running_state, render=args.render, num_threads=args.num_threads)
 
-class eclustering_dummy:
+class eclustering_km:
+    def __init__(self, K):
+        from sklearn.cluster import KMeans
+        self.estimator = KMeans(n_clusters=K)
+        self.K = K
+    
     def step(self, H):
-        #return np.array([0,0,0] * 2, dtype=np.int64)
-        return np.array([0,0,0] + [1,1,1], dtype=np.int64)
+        if self.K == H.shape[0]:
+            return np.arange(H.shape[0]).astype(np.int64)
+        elif self.K == 1:
+            return np.zeros(H.shape[0]).astype(np.int64)
+        else:
+            partition = self.estimator.fit(H).labels_
+            return partition
 
 def get_wi(partition):
     wi_list = []
@@ -138,8 +154,9 @@ def update_params(batch, i_iter, wi_list, ecluster):
     if use_gpu:
         states, actions, rewards, masks = states.cuda(), actions.cuda(), rewards.cuda(), masks.cuda()
     values = value_net(Variable(states, volatile=True)).data
-    #advantage_inputs = torch.cat((states, actions), dim=1)
-    #advantages_symbol = advantage_net(Variable(states, volatile=True))
+    
+    if i_iter % 10 == 0:
+        advantage_net(Variable(states), Variable(actions), verbose=True)
     #advantage = advantages_symbol.data
     fixed_log_probs = policy_net.get_log_prob(Variable(states, volatile=True), Variable(actions), wi_list).data
 
@@ -167,32 +184,39 @@ def update_params(batch, i_iter, wi_list, ecluster):
 
             H = ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, 1, states_b, actions_b, returns_b, advantages_b, fixed_log_probs_b, lr_mult, args.learning_rate, args.clip_epsilon, args.l2_reg, wi_list)
             list_H.append(H.unsqueeze(0))
-    H_hat = torch.cat(list_H, dim=0).mean(dim=0).numpy().astype(np.float64)
-    with open('logh{0}'.format(logger_name), 'a') as fa:
-        fa.write(str(H_hat) + '\n')
+    if use_gpu:
+        H_hat = torch.cat(list_H, dim=0).mean(dim=0).cpu().numpy().astype(np.float64)
+    else:
+        H_hat = torch.cat(list_H, dim=0).mean(dim=0).numpy().astype(np.float64)
+    #with open('logh{0}'.format(logger_name), 'a') as fa:
+    #    fa.write(str(H_hat) + '\n')
     partition = ecluster.step(H_hat)
     wi_list = get_wi(partition)
     return wi_list, H_hat
 
+total_steps = 0
 partition = np.array([0,] * action_dim, dtype=np.int64)
 wi_list = get_wi(partition)
+ecluster = eclustering_km(args.number_subspaces)
+#ecluster = eclustering_dummy()
 for i_iter in range(args.max_iter_num):
     """
     generate multiple trajectories that reach the minimum batch_size
     batch: size optim_epochs tuple, then size 
     """    
     batch, log = agent.collect_samples(args.min_batch_size)
+    total_steps += log['num_steps']
     t0 = time.time()
-    wi_list, H_hat = update_params(batch, i_iter, wi_list, eclustering_dummy())
+    wi_list, H_hat = update_params(batch, i_iter, wi_list, ecluster)
     t1 = time.time()
 
     if i_iter % args.log_interval == 0:
         ll = log['reward_episode_list']
         std = np.array(ll).std()
-        msg = '{}\t{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_std {:.2f}\tR_avg {:.2f}\n'.format(
-            datetime.datetime.now().strftime('%d %H:%M:%S'), i_iter, log['sample_time'], t1-t0, log['min_reward'], log['max_reward'], std, log['avg_reward'])
+        msg = '{}\t{}\t{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_std {:.2f}\tR_avg {:.2f}\n'.format(
+            datetime.datetime.now().strftime('%d %H:%M:%S'), i_iter, total_steps, log['sample_time'], t1-t0, log['min_reward'], log['max_reward'], std, log['avg_reward'])
         print(msg)
-        print(H_hat)
+        print((H_hat*1000).astype(np.int))
         with open('log{0}'.format(logger_name), 'a') as fa:
             fa.write(msg)
 

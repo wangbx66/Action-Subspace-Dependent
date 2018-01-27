@@ -32,8 +32,14 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
         advantages_pred = advantage_net(Variable(states), actions_var)
         advantage_loss = (advantages_pred - advantages_target).pow(2).mean()
         if decay:
-            for param in value_net.parameters():
-                advantage_loss += param.pow(2).sum() * l2_reg
+            if advantage_net.fm:
+                for name, param in advantage_net.named_parameters():
+                    if ('VN' in name) or ('AN' in name):
+                        advantage_loss += param.pow(2).sum() * l2_reg
+            else:
+                for name, param in advantage_net.named_parameters():
+                    if ('VN' in name) or ('AN' in name):
+                        advantage_loss += param.pow(2).sum() * l2_reg
         optimizer_advantage.zero_grad()
         advantage_loss.backward()
         optimizer_advantage.step()
@@ -62,13 +68,14 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     """calculate hessian"""
     actions_var = Variable(actions, requires_grad=True)
     g2 = advantage_net.so(Variable(states)).data
-    return g2.mean(dim=0)
     '''
     advantages_pred = advantage_net(Variable(states), actions_var)
-    g1 = grad(advantages_pred.mean(), actions_var, create_graph=True)[0]
+    g1 = grad(advantages_pred.sum(), actions_var, create_graph=True)[0]
     ag = g1.sum(dim=0)
-    g2 = torch.zeros(ag.size() * 2)
-    for idx in range(g2.size()[0]):
-        g2[idx, :] = grad(ag[idx], actions_var, retain_graph=True)[0].sum(dim=0).data
-    return g2
+    g2 = torch.zeros(g1.size()[0], ag.size()[0], ag.size()[0])
+    for idx in range(ag.size()[0]):
+        g2[:, idx, :] = grad(ag[idx], actions_var, retain_graph=True)[0].data
     '''
+    
+    g2m = g2.abs().mean(dim=0)
+    return g2m

@@ -17,8 +17,9 @@ class Advantage(nn.Module):
         hidden_size_S2 = (128, 128)
         hidden_size_SA1 = 128
         hidden_size_SAN = (128, 128)
-        self.k = 4
+        
         self.fm = True
+        self.k = 3 if self.fm else sna_dim[1]
         self.fo = False
 
         self.affine_layers_V1 = nn.ModuleList()
@@ -44,11 +45,11 @@ class Advantage(nn.Module):
         self.A2.weight.data.mul_(0.1)
         self.A2.bias.data.mul_(0.0)
 
-        self.affine_layer_state = nn.Linear(sna_dim[0], hidden_size_SA1)
+        self.affine_layer_VNs = nn.Linear(sna_dim[0], hidden_size_SA1)
         if self.fo:
-            self.affine_layer_action = nn.Linear(sna_dim[1] + sna_dim[1]**2, hidden_size_SA1)
+            self.affine_layer_VNa = nn.Linear(sna_dim[1] + sna_dim[1]**2, hidden_size_SA1)
         else:
-            self.affine_layer_action = nn.Linear(sna_dim[1]**2, hidden_size_SA1)
+            self.affine_layer_VNa = nn.Linear(sna_dim[1]**2, hidden_size_SA1)
         last_dim = hidden_size_SA1
         for nh in hidden_size_SAN:
             self.affine_layers_VN.append(nn.Linear(last_dim, nh))
@@ -59,7 +60,7 @@ class Advantage(nn.Module):
         
         self.W = nn.Linear(3, 1)
 
-    def forward(self, s, a):
+    def forward(self, s, a, verbose=False):
         s1 = s
         for affine in self.affine_layers_V1:
             s1 = self.activation(affine(s1))
@@ -77,12 +78,12 @@ class Advantage(nn.Module):
             v2 = s2.view(a.size()[0], a.size()[1], a.size()[1])
             Advantage_2 = (a2*v2).view(s.size()[0], -1).sum(dim=1, keepdim=True)
 
-        sn = self.affine_layer_state(s)
+        sn = self.affine_layer_VNs(s)
         an = a2.view(s.size()[0], -1)
         if self.fo:
-            an = self.affine_layer_action(torch.cat([a, an]))
+            an = self.affine_layer_VNa(torch.cat([a, an]))
         else:
-            an = self.affine_layer_action(an)
+            an = self.affine_layer_VNa(an)
         # add first or activate first
         xn = self.activation(sn) + self.activation(an)
         for affine in self.affine_layers_VN:
@@ -90,6 +91,13 @@ class Advantage(nn.Module):
         Advantage_N = self.AN(xn)
 
         advantage = self.W(torch.cat([Advantage_1, Advantage_2, Advantage_N], dim=1))
+        if verbose:
+            advantage_1share = self.W(torch.cat([Advantage_1, Advantage_2-Advantage_2, Advantage_N-Advantage_N], dim=1)).abs().mean()
+            advantage_2share = self.W(torch.cat([Advantage_1-Advantage_1, Advantage_2, Advantage_N-Advantage_N], dim=1)).abs().mean()
+            advantage_Nshare = self.W(torch.cat([Advantage_1-Advantage_1, Advantage_2-Advantage_2, Advantage_N], dim=1)).abs().mean()
+            advantage_bias = self.W(torch.cat([Advantage_1-Advantage_1, Advantage_2-Advantage_2, Advantage_N-Advantage_N], dim=1)).mean()
+            print('Shares: {} {} {} {}'.format(advantage_1share.data.numpy().squeeze(), advantage_2share.data.numpy().squeeze(), advantage_Nshare.data.numpy().squeeze(), advantage_bias.data.numpy().squeeze()))
+        
         return advantage
 
     def so(self, s):
@@ -100,5 +108,5 @@ class Advantage(nn.Module):
         if self.fm:
             v2 = torch.matmul(s2.view(s.size()[0], -1, self.k), s2.view(s.size()[0], -1, self.k).transpose(1,2))
         else:
-            v2 = s2.view(a.size()[0], a.size()[1], a.size()[1])
+            v2 = s2.view(s.size()[0], self.k, self.k)
         return v2
