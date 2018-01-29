@@ -6,6 +6,9 @@ from utils import use_gpu
 
 def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, optim_value_iternum, states, actions,
              returns, advantages, fixed_log_probs, lr_mult, lr, clip_epsilon, l2_reg, wi_list):
+    A2C = True
+    SE = not A2C
+    SGR = False
     decay = True
     
     optimizer_policy.lr = lr * lr_mult
@@ -50,16 +53,39 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     log_probs = policy_net.get_log_prob(Variable(states), Variable(actions), wi_list)
     surr1_components = []
     surr2_components = []
-    for cluster, wi in enumerate(wi_list):
-        wi = wi.unsqueeze(0).expand(actions.size()[0], -1)
-        action_i = Variable(action_bar * wi + actions * (1 - wi))
-        advantages_baseline_i = advantage_net(Variable(states), action_i)
-        ratio_i = torch.exp(log_probs[:, cluster].unsqueeze(1) - Variable(fixed_log_probs[:, cluster].unsqueeze(1)))
-        surr1_components.append(ratio_i * (advantages_var - advantages_baseline_i))
-        surr2_components.append(torch.clamp(ratio_i, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * (advantages_var - advantages_baseline_i))
-    surr1 = sum(surr1_components)
-    surr2 = sum(surr2_components)
-    policy_surr = -torch.min(surr1, surr2).mean()
+    surr_min = []
+    if A2C:
+        for cluster, wi in enumerate(wi_list):
+            wi = wi.unsqueeze(0).expand(actions.size()[0], -1)
+            action_i = Variable(action_bar * wi + actions * (1 - wi))
+            advantages_baseline_i = advantage_net(Variable(states), action_i)
+            ratio_i = torch.exp(log_probs[:, cluster].unsqueeze(1) - Variable(fixed_log_probs[:, cluster].unsqueeze(1)))
+            s1 = ratio_i * (advantages_var - advantages_baseline_i)
+            s2 = torch.clamp(ratio_i, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * (advantages_var - advantages_baseline_i)
+            if SGR:
+                surr_min.append(torch.min(s1, s2))
+            else:
+                surr1_components.append(s1)
+                surr2_components.append(s2)
+    elif SE:
+        advantages_baseline = advantage_net(Variable(states), Variable(actions))
+        for cluster, wi in enumerate(wi_list):
+            wi = wi.unsqueeze(0).expand(actions.size()[0], -1)
+            ratio_i = torch.exp(log_probs[:, cluster].unsqueeze(1) - Variable(fixed_log_probs[:, cluster].unsqueeze(1)))
+            s1 = ratio_i * (advantages_var - advantages_baseline)
+            s2 = torch.clamp(ratio_i, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * (advantages_var - advantages_baseline)
+            if SGR:
+                surr_min.append(torch.min(s1, s2))
+            else:
+                surr1_components.append(s1)
+                surr2_components.append(s2)
+    if SGR:
+        policy_surr = -(sum(surr_min)+advantages_baseline).mean() if SE else -(sum(surr_min)).mean()
+    else:
+        surr1 = sum(surr1_components)
+        surr2 = sum(surr2_components)
+        policy_surr = -(torch.min(surr1, surr2)+advantages_baseline).mean() if SE else -torch.min(surr1, surr2).mean()
+    
     optimizer_policy.zero_grad()
     policy_surr.backward()
     torch.nn.utils.clip_grad_norm(policy_net.parameters(), 40)
