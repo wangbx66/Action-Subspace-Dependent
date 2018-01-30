@@ -14,12 +14,20 @@ admin
 ##  pytorch-rl
 
 ```
+python35 interactive_ppo_gym.py --env-name Walker2d-v1 --seed 1 --learning-rate 3e-4 --max-iter-num 10000 --logger-name walker-k1s1v1 --number-subspace 1
+```
+
+```
 source ~/.bashrc
 setenv LD_LIBRARY_PATH $LD_LIBRARY_PATH\:/uac/gds/wwliu/.mujoco/mjpro150/bin
 setenv LD_LIBRARY_PATH $LD_LIBRARY_PATH\:/uac/gds/wwliu/usr/lib64
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/uac/gds/shuaili/.mujoco/mjpro150/bin:/research/syzhang/shuaili/usr/lib64
 setenv CPATH /uac/gds/wwliu/usr/include
+export CPATH=/research/syzhang/shuaili/usr/include
 wget http://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/g/glfw-devel-3.2.1-2.el7.x86_64.rpm
 rpm2cpio glfw-devel-3.2.1-2.el7.x86_64.rpm | cpio -idv
+wget https://rpmfind.net/linux/centos/7.4.1708/os/x86_64/Packages/mesa-libOSMesa-17.0.1-6.20170307.el7.x86_64.rpm
+rpm2cpio libOSMesa-devel-17.0.5-176.1.x86_64.rpm | cpio -idv
 setenv CUDA_VISIBLE_DEVICES 0
 setenv OMP_NUM_THREADS 1
 ```
@@ -43,7 +51,7 @@ vim .mujoco/mjkey.txt (and paste the key)
 (centos) sudo yum install glfw-devel.x86_64
 git clone https://github.com/openai/mujoco-py
 cd mujoco-py
-pipi35 -e .
+LD_LIBRARY_PATH=$HOME/.mujoco/mjpro150/bin pipi35 -e .
 (arch) sudo pacman -S glfw-x11
 (aws) sudo apt-get install swig3.0
 git clone https://github.com/lobachevzky/gym
