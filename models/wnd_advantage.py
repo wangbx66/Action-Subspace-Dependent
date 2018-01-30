@@ -18,7 +18,7 @@ class Advantage(nn.Module):
         hidden_size_SA1 = 128
         hidden_size_SAN = (128, 128)
         
-        self.fm = True
+        self.fm = False
         self.k = 3 if self.fm else sna_dim[1]
         self.fo = False
 

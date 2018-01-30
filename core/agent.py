@@ -7,7 +7,7 @@ import math
 import time
 
 
-def collect_samples(pid, queue, env, policy, custom_reward, mean_action, tensor, render, running_state, update_rs, min_batch_size):
+def collect_samples(pid, queue, env, policy, custom_reward, mean_action, tensor, render, running_state, update_rs, min_batch_size, episteps):
     torch.randn(pid, )
     log = dict()
     memory = Memory()
@@ -27,7 +27,7 @@ def collect_samples(pid, queue, env, policy, custom_reward, mean_action, tensor,
             state = running_state(state, update=update_rs)
         reward_episode = 0
 
-        for t in range(10000):
+        for t in range(episteps):
             state_var = Variable(tensor(state).unsqueeze(0), volatile=True)
             if mean_action:
                 action = policy(state_var)[0].data[0].numpy()
@@ -105,6 +105,13 @@ class Agent:
     def __init__(self, env_factory, policy, custom_reward=None, mean_action=False, render=False,
                  tensor_type=torch.DoubleTensor, running_state=None, num_threads=1):
         self.env_factory = env_factory
+        env = self.env_factory(0)
+        try:    
+            if env.synthetic:
+                self.episteps = 200
+        except:
+            self.episteps = 10000
+        del env
         self.policy = policy
         self.custom_reward = custom_reward
         self.mean_action = mean_action
@@ -126,14 +133,14 @@ class Agent:
 
         for i in range(self.num_threads-1):
             worker_args = (i+1, queue, self.env_list[i + 1], self.policy, self.custom_reward, self.mean_action,
-                           self.tensor, False, self.running_state, False, thread_batch_size)
+                           self.tensor, False, self.running_state, False, thread_batch_size, self.episteps)
             #import pdb; pdb.set_trace()
             workers.append(multiprocessing.Process(target=collect_samples, args=worker_args))
         for worker in workers:
             worker.start()
 
         memory, log = collect_samples(0, None, self.env_list[0], self.policy, self.custom_reward, self.mean_action,
-                                      self.tensor, self.render, self.running_state, True, thread_batch_size)
+                                      self.tensor, self.render, self.running_state, True, thread_batch_size, self.episteps)
 
         worker_logs = [None] * len(workers)
         worker_memories = [None] * len(workers)

@@ -65,7 +65,7 @@ logger_name = args.logger_name
 
 def env_factory(thread_id):
     if args.env_name == 'Quadratic':
-        env = Quadratic()
+        env = Quadratic(20,4)
     elif args.env_name.startswith('Double'):
         env = Double(args.env_name[6:])
     elif args.env_name.startswith('Trible'):
@@ -216,7 +216,7 @@ for i_iter in range(args.max_iter_num):
         msg = '{}\t{}\t{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_std {:.2f}\tR_avg {:.2f}\n'.format(
             datetime.datetime.now().strftime('%d %H:%M:%S'), i_iter, total_steps, log['sample_time'], t1-t0, log['min_reward'], log['max_reward'], std, log['avg_reward'])
         print(msg)
-        print((H_hat*1000).astype(np.int))
+        #print((H_hat*1000).astype(np.int))
         with open('log{0}'.format(logger_name), 'a') as fa:
             fa.write(msg)
 

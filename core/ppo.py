@@ -68,23 +68,39 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
                 surr1_components.append(s1)
                 surr2_components.append(s2)
     elif SE:
-        advantages_baseline = advantage_net(Variable(states), Variable(actions))
+        #First calculate \xi = (a - \mu(s)) / \sigma(s)
+        #Then calculate \nabla_\theta\mu(s) + \nabla_\theta(\xi\sigma(s))
+        va1 = Variable(actions, requires_grad=False)
+        mean, logstd, std = policy_net(Variable(states))
+        xi = Variable(((va1 - mean) / std).data, requires_grad=False)
+        f = (mean + xi*std).unsqueeze(1)
+
+        #g = [param.grad for param in policy_net.parameters()]
+        va2 = Variable(actions, requires_grad=True)
+        advantages_psi = advantage_net(Variable(states), va2)
+        gaa = grad(advantages_psi.sum(), va2)
+        gaa = Variable(gaa[0].data, requires_grad=False).unsqueeze(2)
+        fta = f.matmul(gaa).squeeze(2)
         for cluster, wi in enumerate(wi_list):
             wi = wi.unsqueeze(0).expand(actions.size()[0], -1)
+            action_i = Variable(actions * wi)
+            action_negi = Variable(actions * (1 - wi), requires_grad=False)
+            advantages_baseline_i = advantage_net(Variable(states), action_i+action_negi)
             ratio_i = torch.exp(log_probs[:, cluster].unsqueeze(1) - Variable(fixed_log_probs[:, cluster].unsqueeze(1)))
-            s1 = ratio_i * (advantages_var - advantages_baseline)
-            s2 = torch.clamp(ratio_i, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * (advantages_var - advantages_baseline)
+            s1 = ratio_i * (advantages_var - advantages_baseline_i)
+            s2 = torch.clamp(ratio_i, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * (advantages_var - advantages_baseline_i)
             if SGR:
                 surr_min.append(torch.min(s1, s2))
             else:
                 surr1_components.append(s1)
                 surr2_components.append(s2)
     if SGR:
-        policy_surr = -(sum(surr_min)+advantages_baseline).mean() if SE else -(sum(surr_min)).mean()
+        policy_surr = -(sum(surr_min)+fta).mean() if SE else -(sum(surr_min)).mean()
     else:
         surr1 = sum(surr1_components)
         surr2 = sum(surr2_components)
-        policy_surr = -(torch.min(surr1, surr2)+advantages_baseline).mean() if SE else -torch.min(surr1, surr2).mean()
+        surr = torch.min(surr1, surr2)
+        policy_surr = -(surr+fta*surr/(surr1+1e-8)).mean() if SE else -torch.min(surr1, surr2).mean()
     
     optimizer_policy.zero_grad()
     policy_surr.backward()
