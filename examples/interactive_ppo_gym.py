@@ -65,7 +65,7 @@ logger_name = args.logger_name
 
 def env_factory(thread_id):
     if args.env_name == 'Quadratic':
-        env = Quadratic(20,4)
+        env = Quadratic(40,4)
     elif args.env_name.startswith('Double'):
         env = Double(args.env_name[6:])
     elif args.env_name.startswith('Trible'):
