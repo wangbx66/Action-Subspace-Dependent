@@ -2,7 +2,9 @@ from gym import spaces
 import numpy as np
 
 class Quadratic:
-    def __init__(self, m, K):
+    def __init__(self, m, K, seed):
+        self.seed_value = seed
+        np.random.seed(seed)
         self.synthetic = True
         self.observation_space = spaces.box.Box(-25 * np.ones(m), 25 * np.ones(m))
         self.action_space = spaces.box.Box(-5 * np.ones(m), 5 * np.ones(m))
@@ -16,11 +18,11 @@ class Quadratic:
             if z.min() > 1:
                 break
         for d in z:
-            #A = np.random.rand(d, d)
-            #self.H.append(100 * A.dot(A.T))
-            self.H.append(100 * np.ones((d,d)).astype(np.float64))
+            A = np.random.rand(d, d)
+            self.H.append(100 * A.dot(A.T))
+            #self.H.append(100 * np.ones((d,d)).astype(np.float64))
         #self.H = np.array([[-1, 0.5, 0, 0], [0.5, -1, 0, 0], [0, 0, -1, 0.5], [0, 0, 0.5, -1]])
-        self.difficulty = 0.001
+        self.difficulty = 0.000
 
     def step(self, action):
         state = np.random.randn(self.m) * self.difficulty
@@ -42,6 +44,6 @@ class Quadratic:
         raise NotImplementedError
 
     def seed(self, seed_value):
-        self.seed = seed_value
+        pass
 
 #Quadratic(4, 2)

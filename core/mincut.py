@@ -22,9 +22,36 @@ Denote the last two nodes added to A as s and t, (t, V-t) is proofed to be an s-
 import numpy as np
 import networkx as nx
 
-n = 4
-H = np.abs(np.random.randn(n, n))
-H = (H+H.T)/2
-H = H - np.diag(np.diag(H))
-G = nx.from_numpy_matrix(H)
-c, p = nx.stoer_wagner(G)
+
+def min_k_cut(H, K):
+    '''
+    1. Respect only the lower triangle of Hessian H, which is the default option of networkx.from_numpy().
+    2. The Hassian H(s) is associated with the state and we have the access of the H(s) function.
+    3. The Hessian is with noise both from the FM system, the neural network system and the noise of RL.
+    '''
+    th = np.median(H[H>0])
+    T = H.copy()
+    T[T<3*th] = 0
+    G = nx.from_numpy_matrix(T)
+    partition = np.zeros(H.shape[0], dtype=np.int64)
+    for idx, component in enumerate(nx.connected_components(G)):
+        partition[list(component)] = idx
+    return partition
+
+if __name__ == '__main__':
+    n = 6
+    H = np.abs(np.random.randn(n, n))
+    #H = (H + H.T) / 2
+    #H = H - np.diag(np.diag(H))
+    H = np.tril(H, k=-1)
+    partition = min_k_cut(H, -1)
+    print(partition)
+
+#graphs = [nx.from_numpy_matrix(H)]
+#cp = [nx.stoer_wagner(G) for G in graphs]
+
+
+
+
+
+

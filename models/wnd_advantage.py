@@ -19,8 +19,18 @@ class Advantage(nn.Module):
         hidden_size_SAN = (128, 128)
         
         self.fm = False
-        self.k = 3 if self.fm else sna_dim[1]
         self.fo = False
+        
+        if self.fm is False:
+            self.k = sna_dim[1]
+        elif sna_dim[1] >= 15:
+            self.k = 4
+        elif sna_dim[1] >= 12:
+            self.k = 3
+        elif:
+            self.k = sna_dim[1]
+            self.fm = False
+        
 
         self.affine_layers_V1 = nn.ModuleList()
         self.affine_layers_V2 = nn.ModuleList()

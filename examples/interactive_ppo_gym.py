@@ -16,6 +16,7 @@ from torch.autograd import Variable
 from core.ppo import ppo_step
 from core.common import estimate_advantages
 from core.agent import Agent
+from core.mincut import min_k_cut
 
 Tensor = DoubleTensor
 torch.set_default_tensor_type('torch.DoubleTensor')
@@ -64,8 +65,10 @@ args = parser.parse_args()
 logger_name = args.logger_name
 
 def env_factory(thread_id):
-    if args.env_name == 'Quadratic':
-        env = Quadratic(40,4)
+    if args.env_name.startswith('Quadratic'):
+        k = int(args.env_name.split('k')[1])
+        m = int(args.env_name.split('k')[0].split('m')[1])
+        env = Quadratic(m, k, args.seed)
     elif args.env_name.startswith('Double'):
         env = Double(args.env_name[6:])
     elif args.env_name.startswith('Trible'):
@@ -90,6 +93,10 @@ ActionTensor = LongTensor if is_disc_action else DoubleTensor
 
 running_state = ZFilter((state_dim,), clip=5)
 # running_reward = ZFilter((1,), demean=False, clip=10)
+
+if isinstance(env_dummy, Quadratic):
+    for H in env_dummy.H:
+        print(H)
 
 """define actor and critic"""
 size = (128, 128)
@@ -122,6 +129,7 @@ optim_batch_size = 4096
 """create agent"""
 agent = Agent(env_factory, policy_net, running_state=running_state, render=args.render, num_threads=args.num_threads)
 
+'''
 class eclustering_km:
     def __init__(self, K):
         from sklearn.cluster import KMeans
@@ -136,6 +144,16 @@ class eclustering_km:
         else:
             partition = self.estimator.fit(H).labels_
             return partition
+'''
+
+class eclustering_km:
+    def __init__(self, K):
+        self.K = K
+    
+    def step(self, H):
+        partition = min_k_cut(H, self.K)
+        return partition
+
 
 def get_wi(partition):
     wi_list = []
@@ -205,6 +223,7 @@ for i_iter in range(args.max_iter_num):
     batch: size optim_epochs tuple, then size 
     """    
     batch, log = agent.collect_samples(args.min_batch_size)
+    print('Data Collected')
     total_steps += log['num_steps']
     t0 = time.time()
     wi_list, H_hat = update_params(batch, i_iter, wi_list, ecluster)
