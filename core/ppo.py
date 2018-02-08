@@ -109,7 +109,7 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
 
     """calculate hessian"""
     actions_var = Variable(actions, requires_grad=True)
-    g2 = advantage_net.so(Variable(states)).data
+    g2 = advantage_net.so(Variable(states))
     '''
     advantages_pred = advantage_net(Variable(states), actions_var)
     g1 = grad(advantages_pred.sum(), actions_var, create_graph=True)[0]

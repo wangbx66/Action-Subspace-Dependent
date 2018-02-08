@@ -223,7 +223,6 @@ for i_iter in range(args.max_iter_num):
     batch: size optim_epochs tuple, then size 
     """    
     batch, log = agent.collect_samples(args.min_batch_size)
-    print('Data Collected')
     total_steps += log['num_steps']
     t0 = time.time()
     wi_list, H_hat = update_params(batch, i_iter, wi_list, ecluster)
