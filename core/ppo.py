@@ -4,8 +4,7 @@ import numpy as np
 from utils import use_gpu
 
 
-def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, optim_value_iternum, states, actions,
-             returns, advantages, fixed_log_probs, lr_mult, lr, clip_epsilon, l2_reg, wi_list):
+def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, optim_value_iternum, states, actions, returns, advantages, fixed_log_probs, lr_mult, lr, clip_epsilon, l2_reg, wi_list):
     A2C = True
     SE = not A2C
     SGR = False
