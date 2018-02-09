@@ -54,6 +54,7 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     surr2_components = []
     surr_min = []
     if A2C:
+        # parallel
         for cluster, wi in enumerate(wi_list):
             wi = wi.unsqueeze(0).expand(actions.size()[0], -1)
             action_i = Variable(action_bar * wi + actions * (1 - wi))
