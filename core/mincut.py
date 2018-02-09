@@ -23,19 +23,33 @@ import numpy as np
 import networkx as nx
 
 
-def min_k_cut(H, K):
+def min_k_cut(H, K, force_k=False):
     '''
     1. Respect only the lower triangle of Hessian H, which is the default option of networkx.from_numpy().
-    2. The Hassian H(s) is associated with the state and we have the access of the H(s) function.
+    2. The Hessian H(s) is associated with the state and we have the access of the H(s) function.
     3. The Hessian is with noise both from the FM system, the neural network system and the noise of RL.
     '''
-    th = np.median(H[H>0])
-    T = H.copy()
-    T[T<3*th] = 0
-    G = nx.from_numpy_matrix(T)
-    partition = np.zeros(H.shape[0], dtype=np.int64)
-    for idx, component in enumerate(nx.connected_components(G)):
-        partition[list(component)] = idx
+    G = nx.from_numpy_matrix(H)
+    if not force_k:
+        partition = np.zeros(H.shape[0], dtype=np.int64)
+        for idx, component in enumerate(nx.connected_components(G)):
+            partition[list(component)] = idx
+    else:
+        subs = []
+        for idx, component in enumerate(nx.connected_components(G)):
+            subs.append(component)
+        K -= len(subs)
+        if K > 0:
+            for idx, component in enumerate(subs):
+                subs[idx] = nx.stoer_wagner(G.subgraph(component)) + (component,)
+        while K > 0:
+            K -= 1
+            #handle cases where len(component)==1
+            idx = subs.find(min(subs))
+            subs.append(nx.stoer_wagner(G.subgraph(subs[idx][1][0])) + (subs[idx][1][0], ))
+            subs.append(nx.stoer_wagner(G.subgraph(subs[idx][1][1])) + (subs[idx][1][1], ))
+            del subs[idx]
+            
     return partition
 
 if __name__ == '__main__':
@@ -48,7 +62,7 @@ if __name__ == '__main__':
     print(partition)
 
 #graphs = [nx.from_numpy_matrix(H)]
-#cp = [nx.stoer_wagner(G) for G in graphs]
+#cp = [ for G in graphs]
 
 
 

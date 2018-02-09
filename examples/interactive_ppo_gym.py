@@ -56,6 +56,8 @@ parser.add_argument('--logger-name', default='', metavar='G',
                     help="logger's name (default: '', empty)")
 parser.add_argument('--number-subspaces', type=int, default=2, metavar='N',
                     help="action #subspace (default: 2)")
+parser.add_argument('--noise-mult', type=float, default=3., metavar='N',
+                    help="required mult to denoise H (default: 3.0)")
 args = parser.parse_args()
 #args.env_name = 'Humanoid-v1'
 #args.env_name = 'Walker2d-v1'
@@ -129,12 +131,10 @@ optim_batch_size = 4096
 """create agent"""
 agent = Agent(env_factory, policy_net, running_state=running_state, render=args.render, num_threads=args.num_threads)
 
-'''
 class eclustering_km:
-    def __init__(self, K):
-        from sklearn.cluster import KMeans
-        self.estimator = KMeans(n_clusters=K)
+    def __init__(self, K, mult):
         self.K = K
+        self.mult = mult
     
     def step(self, H):
         if self.K == H.shape[0]:
@@ -142,17 +142,10 @@ class eclustering_km:
         elif self.K == 1:
             return np.zeros(H.shape[0]).astype(np.int64)
         else:
-            partition = self.estimator.fit(H).labels_
+            th = np.median(H[H>0])
+            H[H<self.mult*th] = 0
+            partition = min_k_cut(H, self.K)
             return partition
-'''
-
-class eclustering_km:
-    def __init__(self, K):
-        self.K = K
-    
-    def step(self, H):
-        partition = min_k_cut(H, self.K)
-        return partition
 
 
 def get_wi(partition):
@@ -209,13 +202,14 @@ def update_params(batch, i_iter, wi_list, ecluster):
     #with open('logh{0}'.format(logger_name), 'a') as fa:
     #    fa.write(str(H_hat) + '\n')
     partition = ecluster.step(H_hat)
+    #put a log and see how many clusters are connected
     wi_list = get_wi(partition)
     return wi_list, H_hat
 
 total_steps = 0
 partition = np.array([0,] * action_dim, dtype=np.int64)
 wi_list = get_wi(partition)
-ecluster = eclustering_km(args.number_subspaces)
+ecluster = eclustering_km(args.number_subspaces, 3)
 #ecluster = eclustering_dummy()
 for i_iter in range(args.max_iter_num):
     """
@@ -226,6 +220,7 @@ for i_iter in range(args.max_iter_num):
     total_steps += log['num_steps']
     t0 = time.time()
     wi_list, H_hat = update_params(batch, i_iter, wi_list, ecluster)
+    print('Inferred K={}'.format(len(wi_list)))
     t1 = time.time()
 
     if i_iter % args.log_interval == 0:
