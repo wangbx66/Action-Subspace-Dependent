@@ -134,6 +134,7 @@ class Advantage(nn.Module):
             v2 = torch.matmul(s2.view(s.size()[0], -1, self.k), s2.view(s.size()[0], -1, self.k).transpose(1,2))
         else:
             v2 = torch.zeros(s.size()[0], self.k, self.k)
-            v2[:,self.lower_cpu[0],self.lower_cpu[1]] = s2
-            #v2 = s2.view(s.size()[0], self.k, self.k)
+            if use_gpu:
+                v2 = v2.cuda()
+            v2[:,self.lower[0],self.lower[1]] = s2
         return v2
