@@ -7,6 +7,5 @@ python interactive_ppo_gym.py --env-name Quadraticm6k2 --seed 1 --learning-rate 
 
 ### Acknowledgement
 
-The code is forked from https://github.com/Khrylx/PyTorch-RL
-
-
+The Actor part of the code is forked from https://github.com/Khrylx/PyTorch-RL  
+The Critic part of the code is forked from https://github.com/ghliu/pytorch-ddpg
