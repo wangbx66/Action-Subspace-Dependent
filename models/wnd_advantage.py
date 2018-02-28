@@ -114,10 +114,10 @@ class Advantage(nn.Module):
             advantage_2share = self.W(torch.cat([Advantage_1-Advantage_1, Advantage_2, Advantage_N-Advantage_N], dim=1)).abs().mean()
             advantage_Nshare = self.W(torch.cat([Advantage_1-Advantage_1, Advantage_2-Advantage_2, Advantage_N], dim=1)).abs().mean()
             advantage_bias = self.W(torch.cat([Advantage_1-Advantage_1, Advantage_2-Advantage_2, Advantage_N-Advantage_N], dim=1)).mean()
-            advantage_1share = advantage_1share if use_gpu else advantage_1share.cpu()
-            advantage_2share = advantage_2share if use_gpu else advantage_2share.cpu()
-            advantage_Nshare = advantage_Nshare if use_gpu else advantage_Nshare.cpu()
-            advantage_bias = advantage_bias if use_gpu else advantage_bias.cpu()
+            advantage_1share = advantage_1share.cpu() if use_gpu else advantage_1share
+            advantage_2share = advantage_2share.cpu() if use_gpu else advantage_2share
+            advantage_Nshare = advantage_Nshare.cpu() if use_gpu else advantage_Nshare
+            advantage_bias = advantage_bias.cpu() if use_gpu else advantage_bias
             print('Shares: {} {} {} {}'.format(advantage_1share.data.numpy().squeeze(), advantage_2share.data.numpy().squeeze(), advantage_Nshare.data.numpy().squeeze(), advantage_bias.data.numpy().squeeze()))
         
         return advantage
