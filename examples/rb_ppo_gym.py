@@ -131,7 +131,7 @@ optim_batch_size = 4096
 """create agent"""
 agent = Agent(env_factory, policy_net, running_state=running_state, render=args.render, num_threads=args.num_threads)
 
-class eclustering_km:
+class CC:
     def __init__(self, K, mult):
         self.K = K
         self.mult = mult
@@ -145,6 +145,7 @@ class eclustering_km:
             th = np.median(H[H>0])
             H[H<self.mult*th] = 0
             partition = min_k_cut(H, self.K)
+            print('Inferred partition {}'.format(partition))
             return partition
 
 
@@ -155,9 +156,9 @@ def get_wi(partition):
         if use_gpu:
             wi = wi.cuda()
         wi_list.append(wi)
-    return wi_list
+    return wi_CClist
 
-def update_params(batch, i_iter, wi_list, ecluster):
+def update_params(batch, i_iter, wi_list, partitioner):
     states = torch.from_numpy(np.stack(batch.state))
     actions = torch.from_numpy(np.stack(batch.action))
     rewards = torch.from_numpy(np.stack(batch.reward))
@@ -201,7 +202,7 @@ def update_params(batch, i_iter, wi_list, ecluster):
         H_hat = torch.cat(list_H, dim=0).mean(dim=0).numpy().astype(np.float64)
     #with open('logh{0}'.format(logger_name), 'a') as fa:
     #    fa.write(str(H_hat) + '\n')
-    partition = ecluster.step(H_hat)
+    partition = partitioner.step(H_hat)
     #put a log and see how many clusters are connected
     wi_list = get_wi(partition)
     return wi_list, H_hat
@@ -209,8 +210,7 @@ def update_params(batch, i_iter, wi_list, ecluster):
 total_steps = 0
 partition = np.array([0,] * action_dim, dtype=np.int64)
 wi_list = get_wi(partition)
-ecluster = eclustering_km(args.number_subspaces, 3)
-#ecluster = eclustering_dummy()
+partitioner = CC(args.number_subspaces, 3)
 for i_iter in range(args.max_iter_num):
     """
     generate multiple trajectories that reach the minimum batch_size
@@ -219,8 +219,8 @@ for i_iter in range(args.max_iter_num):
     batch, log = agent.collect_samples(args.min_batch_size)
     total_steps += log['num_steps']
     t0 = time.time()
-    wi_list, H_hat = update_params(batch, i_iter, wi_list, ecluster)
-    print('Inferred K={}'.format(len(wi_list)))
+    wi_list, H_hat = update_params(batch, i_iter, wi_list, partitioner)
+    
     t1 = time.time()
 
     if i_iter % args.log_interval == 0:
