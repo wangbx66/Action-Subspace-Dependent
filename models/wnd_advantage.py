@@ -36,6 +36,9 @@ class Advantage(nn.Module):
         self.lower = torch.ones(sna_dim[1], sna_dim[1]).tril(-1).nonzero().t()
         if use_gpu:
             self.lower = self.lower.cuda()
+            self.lower_cpu = self.lower.cpu()
+        else:
+            self.lower_cpu = self.lower
 
         self.affine_layers_V1 = nn.ModuleList()
         self.affine_layers_V2 = nn.ModuleList()
@@ -131,6 +134,6 @@ class Advantage(nn.Module):
             v2 = torch.matmul(s2.view(s.size()[0], -1, self.k), s2.view(s.size()[0], -1, self.k).transpose(1,2))
         else:
             v2 = torch.zeros(s.size()[0], self.k, self.k)
-            v2[:,self.lower[0],self.lower[1]] = s2
+            v2[:,self.lower_cpu[0],self.lower_cpu[1]] = s2
             #v2 = s2.view(s.size()[0], self.k, self.k)
         return v2
