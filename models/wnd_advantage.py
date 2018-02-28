@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from utils import debug, use_gpu
+
 
 class Advantage(nn.Module):
     def __init__(self, sna_dim, hidden_size=(128, 128, 128), activation='tanh'):
@@ -32,6 +34,8 @@ class Advantage(nn.Module):
             self.fm = False
         # with tril(-1) the quadratic term excludes the square entries.
         self.lower = torch.ones(sna_dim[1], sna_dim[1]).tril(-1).nonzero().t()
+        if use_gpu:
+            self.lower = self.lower.cuda()
 
         self.affine_layers_V1 = nn.ModuleList()
         self.affine_layers_V2 = nn.ModuleList()
@@ -72,6 +76,7 @@ class Advantage(nn.Module):
         self.W = nn.Linear(3, 1)
 
     def forward(self, s, a, verbose=False):
+        debug()
         s1 = s
         for affine in self.affine_layers_V1:
             s1 = self.activation(affine(s1))
