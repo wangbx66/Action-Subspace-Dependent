@@ -8,7 +8,7 @@ import datetime
 sys.path.append(os.path.expanduser('~/Action-Subspace-Dependent'))
 
 from utils import *
-from models.mlp_policy import Policy
+from models.mlp_policy_full import Policy
 from models.mlp_critic import Value
 from models.wnd_advantage import Advantage
 from models.mlp_policy_disc import DiscretePolicy
@@ -156,7 +156,7 @@ def get_wi(partition):
         if use_gpu:
             wi = wi.cuda()
         wi_list.append(wi)
-    return wi_CClist
+    return wi_list
 
 def update_params(batch, i_iter, wi_list, partitioner):
     states = torch.from_numpy(np.stack(batch.state))

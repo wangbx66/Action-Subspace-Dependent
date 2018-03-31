@@ -9,7 +9,7 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     SE = not A2C
     SGR = False
     decay = True
-    
+
     optimizer_policy.lr = lr * lr_mult
     optimizer_value.lr = lr * lr_mult
     optimizer_advantage.lr = lr * lr_mult
