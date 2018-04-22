@@ -1,9 +1,15 @@
-
+import torch
 
 def estimate_advantages(rewards, masks, values, gamma, tau, use_gpu):
+    #import pdb; pdb.set_trace()
     if use_gpu:
         rewards, masks, values = rewards.cpu(), masks.cpu(), values.cpu()
     tensor_type = type(rewards)
+    '''
+    Apr 6 2018 seems torch has been updated. Any tensor is now a Variable
+    '''
+    tensor_type = torch.DoubleTensor
+    
     returns = tensor_type(rewards.size(0), 1)
     deltas = tensor_type(rewards.size(0), 1)
     advantages = tensor_type(rewards.size(0), 1)

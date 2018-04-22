@@ -24,7 +24,7 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
             for param in value_net.parameters():
                 value_loss += param.pow(2).sum() * l2_reg
         optimizer_value.zero_grad()
-        value_loss.backward()
+        value_loss.backward(retain_graph=True)
         optimizer_value.step()
 
     """update advantage"""
@@ -43,7 +43,7 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
                     if ('VN' in name) or ('AN' in name):
                         advantage_loss += param.pow(2).sum() * l2_reg
         optimizer_advantage.zero_grad()
-        advantage_loss.backward()
+        advantage_loss.backward(retain_graph=True)
         optimizer_advantage.step()
 
     """update policy"""
@@ -54,11 +54,11 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     surr2_components = []
     surr_min = []
     if A2C:
-        # parallel
         for cluster, wi in enumerate(wi_list):
             wi = wi.unsqueeze(0).expand(actions.size()[0], -1)
             action_i = Variable(action_bar * wi + actions * (1 - wi))
-            advantages_baseline_i = advantage_net(Variable(states), action_i)
+            with torch.no_grad():
+                advantages_baseline_i = advantage_net(Variable(states), action_i)
             ratio_i = torch.exp(log_probs[:, cluster].unsqueeze(1) - Variable(fixed_log_probs[:, cluster].unsqueeze(1)))
             s1 = ratio_i * (advantages_var - advantages_baseline_i)
             s2 = torch.clamp(ratio_i, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * (advantages_var - advantages_baseline_i)
@@ -103,7 +103,7 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
         policy_surr = -(surr+fta*surr/(surr1+1e-8)).mean() if SE else -torch.min(surr1, surr2).mean()
     
     optimizer_policy.zero_grad()
-    policy_surr.backward()
+    policy_surr.backward(retain_graph=True)
     torch.nn.utils.clip_grad_norm(policy_net.parameters(), 40)
     optimizer_policy.step()
 

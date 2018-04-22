@@ -28,11 +28,14 @@ def collect_samples(pid, queue, env, policy, custom_reward, mean_action, tensor,
         reward_episode = 0
 
         for t in range(episteps):
-            state_var = Variable(tensor(state).unsqueeze(0), volatile=True)
-            if mean_action:
-                action = policy(state_var)[0].data[0].numpy()
-            else:
-                action = policy.select_action(state_var)[0].numpy()
+            #state_var = Variable(tensor(state).unsqueeze(0), volatile=True)
+            #pytorch bleeding edge update removes volatile argument
+            state_var = Variable(tensor(state).unsqueeze(0))
+            with torch.no_grad():
+                if mean_action:
+                    action = policy(state_var)[0].data[0].numpy()
+                else:
+                    action = policy.select_action(state_var)[0].numpy()
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             reward_episode += reward
@@ -77,6 +80,7 @@ def collect_samples(pid, queue, env, policy, custom_reward, mean_action, tensor,
         log['max_c_reward'] = max_c_reward
         log['min_c_reward'] = min_c_reward
 
+    #import pdb; pdb.set_trace()
     if queue is not None:
         queue.put([pid, memory, log])
     else:

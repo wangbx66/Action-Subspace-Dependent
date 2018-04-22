@@ -7,6 +7,12 @@ import time
 import datetime
 sys.path.append(os.path.expanduser('~/Action-Subspace-Dependent'))
 
+'''
+python rb_ppo_gym.py --env-name HalfCheetah-v1 --seed 1 --learning-rate 3e-4 --max-iter-num 10000 --logger-name HalfCheetah-k1s1 --number-subspace 1
+
+python rb_ppo_gym.py --env-name Quadraticm6k2 --seed 1 --learning-rate 3e-3 --max-iter-num 10000 --logger-name log --number-subspace 1 --noise-mult 3
+'''
+
 from utils import *
 from models.mlp_policy_full import Policy
 from models.mlp_critic import Value
@@ -28,7 +34,7 @@ parser.add_argument('--model-path', metavar='G',
                     help='path of pre-trained model')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
-parser.add_argument('--log-std', type=float, default=0, metavar='G',
+parser.add_argument('--scale-cov', type=float, default=1, metavar='G',
                     help='log std for the policy (default: 0)')
 parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
                     help='discount factor (default: 0.99)')
@@ -109,7 +115,7 @@ if args.model_path is None:
     if is_disc_action:
         policy_net = DiscretePolicy(state_dim, env_dummy.action_space.n)
     else:
-        policy_net = Policy(state_dim, env_dummy.action_space.shape[0], hidden_size=policy_size, log_std=args.log_std)
+        policy_net = Policy(state_dim, env_dummy.action_space.shape[0], hidden_size=policy_size, scale_cov=args.scale_cov)
     value_net = Value(state_dim, hidden_size=critic_size)
     advantage_net = Advantage((state_dim, action_dim), hidden_size=advantage_size)
 else:
@@ -165,12 +171,18 @@ def update_params(batch, i_iter, wi_list, partitioner):
     masks = torch.from_numpy(np.stack(batch.mask).astype(np.float64))
     if use_gpu:
         states, actions, rewards, masks = states.cuda(), actions.cuda(), rewards.cuda(), masks.cuda()
-    values = value_net(Variable(states, volatile=True)).data
+    # remove volatile
+    # values = value_net(Variable(states, volatile=True)).data
+    with torch.no_grad():
+        values = value_net(Variable(states)).data
     
     if i_iter % 10 == 0:
         advantage_net(Variable(states), Variable(actions), verbose=True)
     #advantage = advantages_symbol.data
-    fixed_log_probs = policy_net.get_log_prob(Variable(states, volatile=True), Variable(actions), wi_list).data
+    # remove volatile
+    # fixed_log_probs = policy_net.get_log_prob(Variable(states, volatile=True), Variable(actions), wi_list).data
+    with torch.no_grad():
+        fixed_log_probs = policy_net.get_log_prob(Variable(states), Variable(actions), wi_list).data
 
     """get advantage estimation from the trajectories"""
     advantages, returns, advantages_unbiased = estimate_advantages(rewards, masks, values, args.gamma, args.tau, use_gpu)

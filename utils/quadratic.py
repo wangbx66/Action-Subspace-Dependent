@@ -6,8 +6,8 @@ class Quadratic:
         self.seed_value = seed
         np.random.seed(seed)
         self.synthetic = True
-        self.observation_space = spaces.box.Box(-25 * np.ones(m), 25 * np.ones(m))
-        self.action_space = spaces.box.Box(-5 * np.ones(m), 5 * np.ones(m))
+        self.observation_space = spaces.box.Box(-25 * np.ones(m), 25 * np.ones(m), dtype=np.float64)
+        self.action_space = spaces.box.Box(-5 * np.ones(m), 5 * np.ones(m), dtype=np.float64)
         self.m = m
         self.K = K
         self.H = []
@@ -28,6 +28,7 @@ class Quadratic:
         state = np.random.randn(self.m) * self.difficulty
         pp = np.append(self.partition, self.m)
         reward = 0
+        #import pdb; pdb.set_trace()
         for idx, ss in [(i, slice(pp[i],pp[i+1])) for i in range(self.K)]:
             reward -= action[ss].dot(self.H[idx]).dot(action[ss])
         reward += np.random.randn() * self.difficulty
