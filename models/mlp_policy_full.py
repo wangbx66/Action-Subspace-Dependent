@@ -29,6 +29,7 @@ class Policy(nn.Module):
 
         self.raw_cov = nn.Parameter(torch.randn(action_dim, action_dim) * scale_cov)
         self.action_cov = torch.mm(self.raw_cov.t(), self.raw_cov)
+        #import pdb; pdb.set_trace()
 
     def forward(self, x):
         for affine in self.affine_layers:

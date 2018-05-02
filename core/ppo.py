@@ -24,13 +24,13 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
             for param in value_net.parameters():
                 value_loss += param.pow(2).sum() * l2_reg
         optimizer_value.zero_grad()
-        value_loss.backward(retain_graph=True)
+        value_loss.backward(retain_graph=False)
         optimizer_value.step()
 
     """update advantage"""
     advantages_target = Variable(advantages)
     for _ in range(optim_value_iternum):
-        actions_var = Variable(actions, requires_grad=True)
+        actions_var = Variable(actions)
         advantages_pred = advantage_net(Variable(states), actions_var)
         advantage_loss = (advantages_pred - advantages_target).pow(2).mean()
         if decay:
@@ -43,25 +43,29 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
                     if ('VN' in name) or ('AN' in name):
                         advantage_loss += param.pow(2).sum() * l2_reg
         optimizer_advantage.zero_grad()
-        advantage_loss.backward(retain_graph=True)
+        advantage_loss.backward(retain_graph=False)
         optimizer_advantage.step()
 
     """update policy"""
-    advantages_var = Variable(advantages)
+    #import pdb; pdb.set_trace()
+    advantages_var = advantages
     action_bar = actions.mean(dim=0).unsqueeze(0).expand(actions.size()[0], -1)
-    log_probs = policy_net.get_log_prob(Variable(states), Variable(actions), wi_list)
+    #requires_grad
+    log_probs = policy_net.get_log_prob(states, actions, wi_list)
     surr1_components = []
     surr2_components = []
     surr_min = []
+    #import pdb; pdb.set_trace()
     if A2C:
         for cluster, wi in enumerate(wi_list):
             wi = wi.unsqueeze(0).expand(actions.size()[0], -1)
-            action_i = Variable(action_bar * wi + actions * (1 - wi))
+            action_i = action_bar * wi + actions * (1 - wi)
             with torch.no_grad():
-                advantages_baseline_i = advantage_net(Variable(states), action_i)
+                advantages_baseline_i = advantage_net(states, action_i)
+            #requires_grad
             ratio_i = torch.exp(log_probs[:, cluster].unsqueeze(1) - Variable(fixed_log_probs[:, cluster].unsqueeze(1)))
-            s1 = ratio_i * (advantages_var - advantages_baseline_i)
-            s2 = torch.clamp(ratio_i, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * (advantages_var - advantages_baseline_i)
+            s1 = ratio_i * (advantages - advantages_baseline_i)
+            s2 = torch.clamp(ratio_i, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * (advantages - advantages_baseline_i)
             if SGR:
                 surr_min.append(torch.min(s1, s2))
             else:
@@ -100,15 +104,20 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
         surr1 = sum(surr1_components)
         surr2 = sum(surr2_components)
         surr = torch.min(surr1, surr2)
-        policy_surr = -(surr+fta*surr/(surr1+1e-8)).mean() if SE else -torch.min(surr1, surr2).mean()
+        policy_surr = -(surr+fta*surr/(surr1+1e-8)).mean() if SE else -surr.mean()
     
     optimizer_policy.zero_grad()
+    '''
+    To investigate: learn why policy_surr has to retain its graph (while the other two networks need not to do so
+    '''
     policy_surr.backward(retain_graph=True)
+    #print('policy back')
+    #import pdb; pdb.set_trace()
     torch.nn.utils.clip_grad_norm(policy_net.parameters(), 40)
     optimizer_policy.step()
 
     """calculate hessian"""
-    actions_var = Variable(actions, requires_grad=True)
+    actions_var = Variable(actions, requires_grad=False)
     g2 = advantage_net.so(Variable(states))
     '''
     advantages_pred = advantage_net(Variable(states), actions_var)

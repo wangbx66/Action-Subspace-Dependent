@@ -174,15 +174,16 @@ def update_params(batch, i_iter, wi_list, partitioner):
     # remove volatile
     # values = value_net(Variable(states, volatile=True)).data
     with torch.no_grad():
-        values = value_net(Variable(states)).data
+        values = value_net(states)
     
     if i_iter % 10 == 0:
-        advantage_net(Variable(states), Variable(actions), verbose=True)
+        with torch.no_grad():
+            advantage_net(states, actions, verbose=True)
     #advantage = advantages_symbol.data
     # remove volatile
     # fixed_log_probs = policy_net.get_log_prob(Variable(states, volatile=True), Variable(actions), wi_list).data
     with torch.no_grad():
-        fixed_log_probs = policy_net.get_log_prob(Variable(states), Variable(actions), wi_list).data
+        fixed_log_probs = policy_net.get_log_prob(states, actions, wi_list)
 
     """get advantage estimation from the trajectories"""
     advantages, returns, advantages_unbiased = estimate_advantages(rewards, masks, values, args.gamma, args.tau, use_gpu)
@@ -205,7 +206,7 @@ def update_params(batch, i_iter, wi_list, partitioner):
             ind = slice(i * optim_batch_size, min((i + 1) * optim_batch_size, states.shape[0]))
             states_b, actions_b, advantages_b, returns_b, fixed_log_probs_b = \
                 states[ind], actions[ind], advantages[ind], returns[ind], fixed_log_probs[ind]
-
+            #import pdb; pdb.set_trace()
             H = ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, 1, states_b, actions_b, returns_b, advantages_b, fixed_log_probs_b, lr_mult, args.learning_rate, args.clip_epsilon, args.l2_reg, wi_list)
             list_H.append(H.unsqueeze(0))
     if use_gpu:
@@ -219,8 +220,11 @@ def update_params(batch, i_iter, wi_list, partitioner):
     wi_list = get_wi(partition)
     return wi_list, H_hat
 
+if not os.path.exists('log'):
+    os.makedirs('log')
 total_steps = 0
-partition = np.array([0,] * action_dim, dtype=np.int64)
+#partition = np.array([0,] * action_dim, dtype=np.int64)
+partition = np.array([0,0,0,1,1,1], dtype=np.int64)
 wi_list = get_wi(partition)
 partitioner = CC(args.number_subspaces, 3)
 for i_iter in range(args.max_iter_num):
@@ -242,7 +246,7 @@ for i_iter in range(args.max_iter_num):
             datetime.datetime.now().strftime('%d %H:%M:%S'), i_iter, total_steps, log['sample_time'], t1-t0, log['min_reward'], log['max_reward'], std, log['avg_reward'])
         print(msg)
         #print((H_hat*1000).astype(np.int))
-        with open('log{0}'.format(logger_name), 'a') as fa:
+        with open('log/log{0}'.format(logger_name), 'a') as fa:
             fa.write(msg)
 
     if args.save_model_interval > 0 and (i_iter+1) % args.save_model_interval == 0:

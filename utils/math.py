@@ -31,11 +31,12 @@ def multi_normal_log_density(x, mean, cov, wi_list=None):
     else:
         results = []
         for wi in wi_list:
-            idx = np.argwhere(wi).squeeze(1)
+            idx = np.argwhere(wi).squeeze(0)
             meani = mean[:,idx]
             covi = cov[:,idx,:][:,:,idx]
             xi = x[:,idx]
             dist = MultivariateNormal(meani, covi)
             lp = dist.log_prob(xi)
-            results.append(lp)
+            results.append(lp.unsqueeze(1))
+        #import pdb; pdb.set_trace()
         return torch.cat(results, dim=1)
