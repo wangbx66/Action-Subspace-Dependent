@@ -35,8 +35,13 @@ def multi_normal_log_density(x, mean, cov, wi_list=None):
             meani = mean[:,idx]
             covi = cov[:,idx,:][:,:,idx]
             xi = x[:,idx]
+            if use_gpu:
+                meani, covi, xi = meani.cpu(), covi.cpu(), xi.cpu()
             dist = MultivariateNormal(meani, covi)
             lp = dist.log_prob(xi)
             results.append(lp.unsqueeze(1))
-        #import pdb; pdb.set_trace()
-        return torch.cat(results, dim=1)
+        log_prob = torch.cat(results, dim=1)
+        if use_gpu:
+            return log_prob.cuda()
+        else:
+            return log_prob
