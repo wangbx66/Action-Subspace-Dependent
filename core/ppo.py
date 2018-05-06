@@ -114,7 +114,10 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     #print('policy back')
     #import pdb; pdb.set_trace()
     torch.nn.utils.clip_grad_norm(policy_net.parameters(), 40)
-    optimizer_policy.step()
+    try:
+        optimizer_policy.step(verbose=True)
+    except:
+        optimizer_policy.step(verbose)
 
     """calculate hessian"""
     actions_var = Variable(actions, requires_grad=False)
