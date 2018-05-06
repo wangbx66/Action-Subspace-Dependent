@@ -111,6 +111,8 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     To investigate: learn why policy_surr has to retain its graph (while the other two networks need not to do so
     '''
     policy_surr.backward(retain_graph=True)
+    if use_gpu:
+        policy_net.raw_cov.grad = policy_net.raw_cov.grad.cuda()
     #print('policy back')
     #import pdb; pdb.set_trace()
     torch.nn.utils.clip_grad_norm(policy_net.parameters(), 40)
