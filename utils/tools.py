@@ -1,4 +1,4 @@
-from os import path
+import os
 
 #import ipdb
 #debug = ipdb.set_trace
@@ -41,5 +41,5 @@ def get_key():
     copyfile(mjkey, os.path.expanduser('~/.mujoco/mjkey.txt'))
 
 def assets_dir():
-    return path.abspath(path.join(path.dirname(path.abspath(__file__)), '../assets'))
+    return os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../assets'))
 

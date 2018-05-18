@@ -25,23 +25,23 @@ command_prefix =\
 """#!/bin/bash
 #SBATCH --mem=3G
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=1
 hostname
 whoami\n"""
 
 env_list = ['HalfCheetah-v1']
 seed_list = list(range(3))
-k_list = [0]中文
+k_list = [2]
 #delta_list = [1., 2., 3., 4., 5., ]
-delta_list = [1.]
-config_list = [env_list, seed_list, k_list, delta_list]
+method_list = ['posa']
+config_list = [env_list, seed_list, k_list, method_list]
 import itertools
 configs = itertools.product(*config_list)
 
 index = 0
 for config in configs:
     file_name = 'job_'+str(index)+'.sh'
-    command = 'python rb_ppo_gym.py --env-name {env} --seed {seed} --learning-rate 3e-4 --max-iter-num 10 --logger-name {env}-k{k}s{seed}d{delta} --number-subspace {k} --noise-mult {delta}'.format(env=config[0], seed=config[1], k=config[2], delta=config[3])
+    command = 'python rb_ppo_gym.py --env-name {env} --seed {seed} --learning-rate {lr} --max-iter-num 10 --logger-name log/{env}-k{k}s{seed}-{method} --number-subspace {k}'.format(env=config[0], seed=config[1], k=config[2], method=config[3], lr='3e-3' if config[0].startswith('Quadratic') else '3e-4')
     file_string = command_prefix+command+'\n'
     with open(file_name, 'w') as f:
         f.write(file_string)
