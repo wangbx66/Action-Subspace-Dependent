@@ -29,12 +29,12 @@ command_prefix =\
 hostname
 whoami\n"""
 
-max_iter = 10
-env_list = ['Quadraticm6k2']
-seed_list = list(range(3))
+max_iter = 10000
+env_list = ['Quadraticm6k2','Quadraticm10k2','Quadraticm20k2']
+seed_list = list(range(5))
 k_list = [2]
 #delta_list = [1., 2., 3., 4., 5., ]
-method_list = ['posa']
+method_list = ['posa', 'combinatorial', 'submodular']
 config_list = [env_list, seed_list, k_list, method_list]
 import itertools
 configs = itertools.product(*config_list)
