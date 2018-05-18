@@ -2,7 +2,7 @@ import multiprocessing
 import functools
 from utils.replay_memory import Memory
 from utils.torch import *
-from utils.tools import mjkey_mutex
+from utils.tools import mjkey_mutex, release_mutex
 from torch.autograd import Variable
 import math
 import os
