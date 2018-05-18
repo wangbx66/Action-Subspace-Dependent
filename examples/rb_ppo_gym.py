@@ -8,9 +8,9 @@ import datetime
 sys.path.append(os.path.expanduser('~/Action-Subspace-Dependent'))
 
 '''
-python rb_ppo_gym.py --env-name HalfCheetah-v1 --seed 1 --learning-rate 3e-4 --max-iter-num 10000 --logger-name HalfCheetah-posa-k1s1 --method posa --number-subspace 1
+python rb_ppo_gym.py --env-name HalfCheetah-v1 --seed 1 --learning-rate 3e-4 --max-iter-num 10000 --logger-name HalfCheetah-k1s1-posa --method posa --number-subspace 1
 
-python rb_ppo_gym.py --env-name Quadraticm6k2 --seed 1 --learning-rate 3e-3 --max-iter-num 10000 --logger-name log --method posa --number-subspace 2
+python rb_ppo_gym.py --env-name Quadraticm6k2 --seed 1 --learning-rate 3e-3 --max-iter-num 10000 --logger-name test --method posa --number-subspace 2
 '''
 
 from utils import *

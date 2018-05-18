@@ -29,7 +29,8 @@ command_prefix =\
 hostname
 whoami\n"""
 
-env_list = ['HalfCheetah-v1']
+max_iter = 10
+env_list = ['Quadraticm6k2']
 seed_list = list(range(3))
 k_list = [2]
 #delta_list = [1., 2., 3., 4., 5., ]
@@ -41,7 +42,7 @@ configs = itertools.product(*config_list)
 index = 0
 for config in configs:
     file_name = 'job_'+str(index)+'.sh'
-    command = 'python rb_ppo_gym.py --env-name {env} --seed {seed} --learning-rate {lr} --max-iter-num 10 --logger-name log/{env}-k{k}s{seed}-{method} --number-subspace {k}'.format(env=config[0], seed=config[1], k=config[2], method=config[3], lr='3e-3' if config[0].startswith('Quadratic') else '3e-4')
+    command = 'python rb_ppo_gym.py --env-name {env} --seed {seed} --learning-rate {lr} --max-iter-num {max_iter} --logger-name {env}-k{k}s{seed}-{method} --number-subspace {k}'.format(env=config[0], seed=config[1], k=config[2], method=config[3], lr='3e-3' if config[0].startswith('Quadratic') else '3e-4', max_iter=max_iter)
     file_string = command_prefix+command+'\n'
     with open(file_name, 'w') as f:
         f.write(file_string)
