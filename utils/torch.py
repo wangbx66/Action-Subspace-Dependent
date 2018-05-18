@@ -1,3 +1,4 @@
+import socket
 import torch
 import numpy as np
 from torch.autograd import Variable
@@ -5,6 +6,8 @@ from torch.autograd import Variable
 use_gpu = torch.cuda.is_available()
 if torch.cuda.is_available():
     if torch.cuda.get_device_name(0) == 'Quadro K600':
+        use_gpu = False
+    elif socket.gethostname().startswith('compute'):
         use_gpu = False
 DoubleTensor = torch.DoubleTensor
 FloatTensor = torch.FloatTensor

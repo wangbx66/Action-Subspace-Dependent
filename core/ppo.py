@@ -116,10 +116,10 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     #print('policy back')
     #import pdb; pdb.set_trace()
     torch.nn.utils.clip_grad_norm(policy_net.parameters(), 40)
-    try:
-        optimizer_policy.step(verbose=True)
-    except TypeError:
-        optimizer_policy.step()
+    #try:
+    #    optimizer_policy.step(verbose=True)
+    #except TypeError:
+    optimizer_policy.step()
     if use_gpu:
         policy_net.raw_cov.grad = None
 

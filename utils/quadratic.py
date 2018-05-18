@@ -6,8 +6,8 @@ class Quadratic:
         self.seed_value = seed
         np.random.seed(seed)
         self.synthetic = True
-        self.observation_space = spaces.box.Box(-25 * np.ones(m), 25 * np.ones(m), dtype=np.float64)
-        self.action_space = spaces.box.Box(-5 * np.ones(m), 5 * np.ones(m), dtype=np.float64)
+        self.observation_space = spaces.box.Box(-25 * np.ones(m), 25 * np.ones(m))#, dtype=np.float64)
+        self.action_space = spaces.box.Box(-5 * np.ones(m), 5 * np.ones(m))#, dtype=np.float64)
         self.m = m
         self.K = K
         self.H = []
