@@ -22,6 +22,9 @@ Denote the last two nodes added to A as s and t, (t, V-t) is proofed to be an s-
 import numpy as np
 import networkx as nx
 
+import torch
+torch.set_default_tensor_type('torch.DoubleTensor')
+
 
 def min_k_cut(H, K, force_k=False):
     '''
@@ -52,6 +55,77 @@ def min_k_cut(H, K, force_k=False):
             
     return partition
 
+
+def k_connect_components(H, K):
+    n = H.shape[0]
+    c = np.arange(n)
+    if K == n:
+        return c
+    v = set(range(n))
+    tril = np.tril_indices(n, k=-1)
+    e = H[np.tril_indices(n, k=-1)]
+    for idx in np.argsort(e)[::-1]:
+        s = tril[0][idx]
+        t = tril[1][idx]
+        if not c[s] == c[t]:
+            cold = max(c[s], c[t])
+            cnew = min(c[s], c[t])
+            for node, partition in enumerate(c):
+                if partition == cold:
+                    c[node] = cnew
+            #print(s, t, v)
+            v.remove(cold)
+        if len(v) <= K:
+            z = np.zeros(n)
+            for idx, element in enumerate(np.unique(c)):
+                z[element] = idx
+            for idx, element in enumerate(c):
+                c[idx] = z[c[idx]]
+            return(c)
+
+def T2(advantage_net, state, action, action_prime, wi):
+    a00 = action
+    a01 = action * wi + action_prime * (1-wi)
+    a10 = action * (1-wi) + action_prime * wi
+    a11 = action_prime
+    T = advantage_net(state, a00) + advantage_net(state, a11) - advantage_net(state, a10) - advantage_net(state, a01)
+    return (T**2).mean()
+
+def Tij(advantage_net, state, action, action_prime, i, j):
+    a00 = action
+    a01 = action.clone()
+    a01[:, i] = action_prime[:, i]
+    a10 = action.clone()
+    a10[:, j] = action_prime[:, j]
+    a11 = action.clone()
+    a11[:, (i,j)] = action_prime[:, (i,j)]
+    T = advantage_net(state, a00) + advantage_net(state, a11) - advantage_net(state, a10) - advantage_net(state, a01)
+    return (T**2).mean()
+
+def combinatorial(advantage_net, state, action, action_prime):
+    n = action.shape[1]
+    H = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i):
+            H[i, j] = Tij(advantage_net, state, action, action_prime, i, j)
+    return H
+
+def submodular(advantage_net, state, action, action_prime):
+    n = action.shape[1]
+    l = [1,] + [2,]*(n-1)
+    wi_cube = np.ndindex(*l)
+    next(wi_cube) # remove all zero wi
+    best_wi = None
+    best_T2 = None
+    for wi in wi_cube:
+        wi = torch.Tensor(wi).unsqueeze(0)
+        T2_value = T2(advantage_net, state, action, action_prime, wi)
+        T2_value = T2_value / (wi.sum()*(n-wi.sum()))
+        if best_T2 is None or T2_value < best_T2:
+            best_T2 = T2_value
+            best_wi = wi
+    return best_wi.squeeze(0)    
+    
 if __name__ == '__main__':
     n = 6
     H = np.abs(np.random.randn(n, n))

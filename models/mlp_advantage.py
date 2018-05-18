@@ -5,6 +5,8 @@ import torch.nn.functional as F
 class Advantage(nn.Module):
     def __init__(self, sna_dim, hidden_size=(128, 128), activation='tanh'):
         super().__init__()
+        self.fm = False
+        
         if activation == 'tanh':
             self.activation = F.tanh
         elif activation == 'relu':
@@ -28,7 +30,7 @@ class Advantage(nn.Module):
         self.advantage_head.bias.data.mul_(0.0)
 
 
-    def forward(self, s, a):
+    def forward(self, s, a, verbose=True):
         s = self.affine_layer_state(s)
         a = self.affine_layer_action(a)
         x = self.activation(s + a)

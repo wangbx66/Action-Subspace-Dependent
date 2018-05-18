@@ -8,21 +8,20 @@ import datetime
 sys.path.append(os.path.expanduser('~/Action-Subspace-Dependent'))
 
 '''
-python rb_ppo_gym.py --env-name HalfCheetah-v1 --seed 1 --learning-rate 3e-4 --max-iter-num 10000 --logger-name HalfCheetah-k1s1 --number-subspace 1
+python rb_ppo_gym.py --env-name HalfCheetah-v1 --seed 1 --learning-rate 3e-4 --max-iter-num 10000 --logger-name HalfCheetah-posa-k1s1 --method posa --number-subspace 1
 
-python rb_ppo_gym.py --env-name Quadraticm6k2 --seed 1 --learning-rate 3e-3 --max-iter-num 10000 --logger-name log --number-subspace 1 --noise-mult 3
+python rb_ppo_gym.py --env-name Quadraticm6k2 --seed 1 --learning-rate 3e-3 --max-iter-num 10000 --logger-name log --method posa --number-subspace 2
 '''
 
 from utils import *
 from models.mlp_policy_full import Policy
 from models.mlp_critic import Value
-from models.wnd_advantage import Advantage
 from models.mlp_policy_disc import DiscretePolicy
 from torch.autograd import Variable
 from core.ppo import ppo_step
 from core.common import estimate_advantages
 from core.agent import Agent
-from core.mincut import min_k_cut
+from core.mincut import k_connect_components, T2, Tij, combinatorial, submodular
 
 Tensor = DoubleTensor
 torch.set_default_tensor_type('torch.DoubleTensor')
@@ -60,6 +59,8 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--logger-name', default='', metavar='G',
                     help="logger's name (default: '', empty)")
+parser.add_argument('--method', default='posa', metavar='G',
+                    help="method (choices: 'posa', 'posa-mlp', 'combinatorial', 'submodular')")
 parser.add_argument('--number-subspaces', type=int, default=2, metavar='N',
                     help="action #subspace (default: 2)")
 parser.add_argument('--noise-mult', type=float, default=3., metavar='N',
@@ -71,6 +72,11 @@ args = parser.parse_args()
 #args.env_name = 'Ant-v1'
 #args.seed = 2
 logger_name = args.logger_name
+
+if args.method == 'posa':
+    from models.wnd_advantage import Advantage
+else:
+    from models.mlp_advantage import Advantage
 
 def env_factory(thread_id):
     if args.env_name.startswith('Quadratic'):
@@ -92,6 +98,10 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 if use_gpu:
     torch.cuda.manual_seed_all(args.seed)
+
+if mjkey_mutex:
+    hold_mutex()
+    get_key()
 
 env_dummy = env_factory(0)
 state_dim = env_dummy.observation_space.shape[0]
@@ -116,6 +126,7 @@ if args.model_path is None:
         policy_net = DiscretePolicy(state_dim, env_dummy.action_space.n)
     else:
         policy_net = Policy(state_dim, env_dummy.action_space.shape[0], hidden_size=policy_size, scale_cov=args.scale_cov)
+        #policy_net = Policy(state_dim, env_dummy.action_space.shape[0], hidden_size=policy_size, log_std=0)
     value_net = Value(state_dim, hidden_size=critic_size)
     advantage_net = Advantage((state_dim, action_dim), hidden_size=advantage_size)
 else:
@@ -141,7 +152,6 @@ class CC:
     def __init__(self, K, mult):
         self.K = K
         self.mult = mult
-    
     def step(self, H):
         if self.K == H.shape[0]:
             return np.arange(H.shape[0]).astype(np.int64)
@@ -151,6 +161,19 @@ class CC:
             th = np.median(H[H>0])
             H[H<self.mult*th] = 0
             partition = min_k_cut(H, self.K)
+            print('Inferred partition {}'.format(partition))
+            return partition
+
+class CCK:
+    def __init__(self, K):
+        self.K = K
+    def step(self, H):
+        if self.K == H.shape[0]:
+            return np.arange(H.shape[0]).astype(np.int64)
+        elif self.K == 1:
+            return np.zeros(H.shape[0]).astype(np.int64)
+        else:
+            partition = k_connect_components(H, self.K)
             print('Inferred partition {}'.format(partition))
             return partition
 
@@ -206,18 +229,29 @@ def update_params(batch, i_iter, wi_list, partitioner):
             ind = slice(i * optim_batch_size, min((i + 1) * optim_batch_size, states.shape[0]))
             states_b, actions_b, advantages_b, returns_b, fixed_log_probs_b = \
                 states[ind], actions[ind], advantages[ind], returns[ind], fixed_log_probs[ind]
-            #import pdb; pdb.set_trace()
-            H = ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, 1, states_b, actions_b, returns_b, advantages_b, fixed_log_probs_b, lr_mult, args.learning_rate, args.clip_epsilon, args.l2_reg, wi_list)
-            list_H.append(H.unsqueeze(0))
-    if use_gpu:
+            H = ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, 1, states_b, actions_b, returns_b, advantages_b, fixed_log_probs_b, lr_mult, args.learning_rate, args.clip_epsilon, args.l2_reg, wi_list, args.method)
+            
+            if args.method in ['posa', 'posa-mlp']:
+                list_H.append(H.unsqueeze(0))
+    if args.method in ['posa', 'posa-mlp']:
         H_hat = torch.cat(list_H, dim=0).mean(dim=0).cpu().numpy().astype(np.float64)
-    else:
-        H_hat = torch.cat(list_H, dim=0).mean(dim=0).numpy().astype(np.float64)
+    elif args.method in ['combinatorial']:
+        action_prime = policy_net.select_action(states)
+        H = combinatorial(advantage_net, states, actions, action_prime)
+        H_hat = H.astype(np.float64)
+    elif args.method in ['submodular']:
+        action_prime = policy_net.select_action(states)
+        wi = submodular(advantage_net, states, actions, action_prime)
+        wi_list = [wi, 1-wi]
+        H_hat = None
+    if args.method in ['posa', 'posa-mlp', 'combinatorial']:
+        partition = partitioner.step(H_hat)
+        wi_list = get_wi(partition)
     #with open('logh{0}'.format(logger_name), 'a') as fa:
     #    fa.write(str(H_hat) + '\n')
-    partition = partitioner.step(H_hat)
     #put a log and see how many clusters are connected
-    wi_list = get_wi(partition)
+    #import pdb; pdb.set_trace()
+    print(wi_list[0])
     return wi_list, H_hat
 
 if not os.path.exists('log'):
@@ -226,7 +260,8 @@ total_steps = 0
 #partition = np.array([0,] * action_dim, dtype=np.int64)
 partition = np.array([0,0,0,1,1,1], dtype=np.int64)
 wi_list = get_wi(partition)
-partitioner = CC(args.number_subspaces, 3)
+#partitioner = CC(args.number_subspaces, args.noise_mult)
+partitioner = CCK(args.number_subspaces)
 for i_iter in range(args.max_iter_num):
     """
     generate multiple trajectories that reach the minimum batch_size
@@ -236,7 +271,7 @@ for i_iter in range(args.max_iter_num):
     total_steps += log['num_steps']
     t0 = time.time()
     wi_list, H_hat = update_params(batch, i_iter, wi_list, partitioner)
-    
+
     t1 = time.time()
 
     if i_iter % args.log_interval == 0:

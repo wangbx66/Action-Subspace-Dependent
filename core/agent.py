@@ -2,8 +2,10 @@ import multiprocessing
 import functools
 from utils.replay_memory import Memory
 from utils.torch import *
+from utils.tools import mjkey_mutex
 from torch.autograd import Variable
 import math
+import os
 import time
 
 
@@ -126,6 +128,10 @@ class Agent:
         self.env_list = []
         for i in range(num_threads):
             self.env_list.append(self.env_factory(i))
+        # release the key after all gym.make are finished
+        if mjkey_mutex:
+            release_mutex()
+
 
     def collect_samples(self, min_batch_size):
         t_start = time.time()

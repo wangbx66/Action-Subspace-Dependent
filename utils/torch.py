@@ -11,7 +11,6 @@ FloatTensor = torch.FloatTensor
 LongTensor = torch.LongTensor
 ByteTensor = torch.ByteTensor
 
-
 def ones(*shape):
     return torch.ones(*shape).cuda() if use_gpu else torch.ones(*shape)
 

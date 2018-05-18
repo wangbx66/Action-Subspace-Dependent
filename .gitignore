@@ -1,5 +1,7 @@
 # Project Specific Ignores
 examples/log*
+examples/policy_net
+examples/advantage_net
 
 
 # Byte-compiled / optimized / DLL files

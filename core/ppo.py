@@ -4,7 +4,7 @@ import numpy as np
 from utils import use_gpu
 
 
-def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, optim_value_iternum, states, actions, returns, advantages, fixed_log_probs, lr_mult, lr, clip_epsilon, l2_reg, wi_list):
+def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_value, optimizer_advantage, optim_value_iternum, states, actions, returns, advantages, fixed_log_probs, lr_mult, lr, clip_epsilon, l2_reg, wi_list, method):
     A2C = True
     SE = not A2C
     SGR = False
@@ -118,22 +118,24 @@ def ppo_step(policy_net, value_net, advantage_net, optimizer_policy, optimizer_v
     torch.nn.utils.clip_grad_norm(policy_net.parameters(), 40)
     try:
         optimizer_policy.step(verbose=True)
-    except:
-        optimizer_policy.step(verbose)
+    except TypeError:
+        optimizer_policy.step()
     if use_gpu:
-        policy_net.raw_cov.grad = policy_net.raw_cov.grad.cpu()
+        policy_net.raw_cov.grad = None
 
-    """calculate hessian"""
-    actions_var = Variable(actions, requires_grad=False)
-    g2 = advantage_net.so(Variable(states))
-    '''
-    advantages_pred = advantage_net(Variable(states), actions_var)
-    g1 = grad(advantages_pred.sum(), actions_var, create_graph=True)[0]
-    ag = g1.sum(dim=0)
-    g2 = torch.zeros(g1.size()[0], ag.size()[0], ag.size()[0])
-    for idx in range(ag.size()[0]):
-        g2[:, idx, :] = grad(ag[idx], actions_var, retain_graph=True)[0].data
-    '''
-    
-    g2m = g2.abs().mean(dim=0)
+    if method == 'posa':
+        g2 = advantage_net.so(Variable(states))
+        g2m = g2.abs().mean(dim=0)
+    elif method == 'posa-mlp':
+        actions_var = Variable(actions, requires_grad=True)
+        advantages_pred = advantage_net(states, actions_var)
+        g1 = grad(advantages_pred.sum(), actions_var, create_graph=True)[0]
+        ag = g1.sum(dim=0)
+        g2 = torch.zeros(g1.size()[0], ag.size()[0], ag.size()[0])
+        for idx in range(ag.size()[0]):
+            g2[:, idx, :] = grad(ag[idx], actions_var, retain_graph=True)[0].data
+        g2m = g2.abs().mean(dim=0)
+    elif method in ['combinatorial', 'submodular']:
+        g2m = None
+
     return g2m

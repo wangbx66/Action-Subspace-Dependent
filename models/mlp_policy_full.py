@@ -28,7 +28,7 @@ class Policy(nn.Module):
         self.action_mean.bias.data.mul_(0.0)
 
         self.raw_cov = nn.Parameter(torch.randn(action_dim, action_dim) * scale_cov)
-        self.action_cov = torch.mm(self.raw_cov.t(), self.raw_cov)
+        
         #import pdb; pdb.set_trace()
 
     def forward(self, x):
@@ -36,7 +36,8 @@ class Policy(nn.Module):
             x = self.activation(affine(x))
 
         action_mean = self.action_mean(x)
-        action_cov = self.action_cov.expand((action_mean.size()[0], action_mean.size()[1], action_mean.size()[1]))
+        action_cov = torch.mm(self.raw_cov.t(), self.raw_cov) + 0.00001 * torch.eye(action_mean.size()[1])
+        action_cov = action_cov.expand((action_mean.size()[0], action_mean.size()[1], action_mean.size()[1]))
         
         return action_mean, None, action_cov
 
