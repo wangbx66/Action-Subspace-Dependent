@@ -16,7 +16,7 @@ def wait_mutex():
     while True:
         try:
             sign = open(os.path.expanduser('~/.mujoco/mutex')).readline()
-            if not sign == 'available':
+            if not sign.strip() == 'available':
                 print('Mutex locked')
                 time.sleep(1)
             else:

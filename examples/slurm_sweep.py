@@ -34,8 +34,8 @@ hostname
 whoami\n"""
 
 max_iter = 10000
-env_list = ['Quadraticm6k2','Quadraticm10k2','Quadraticm20k2']
-seed_list = list(range(5))
+env_list = ['Hopper-v1','Walker2d-v1','HalfCheetah-v1']
+seed_list = list(range(2))
 k_list = [2]
 #delta_list = [1., 2., 3., 4., 5., ]
 method_list = ['posa', 'combinatorial', 'submodular']
